@@ -240,6 +240,7 @@ public:
 	static GLsizei FRAME_HEIGHT;
 	static Shader lineShader;
 	static DrawObject circle_primitive;
+	static DrawObject sprite_primitive;
 	static DrawObject line_primitive;
 	static DrawObject axisGizmo_primitive;
 

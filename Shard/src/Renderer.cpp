@@ -4,6 +4,7 @@ GLsizei Renderer::FRAME_WIDTH = 800;
 GLsizei Renderer::FRAME_HEIGHT = 600;
 Shader Renderer::lineShader;
 DrawObject Renderer::circle_primitive;
+DrawObject Renderer::sprite_primitive;
 DrawObject Renderer::line_primitive;
 DrawObject Renderer::axisGizmo_primitive;
 priority_queue<tuple<int, DrawObject*, Transform>> Renderer::pq;
@@ -267,10 +268,12 @@ void Renderer::initFrame(glm::vec4 bg_color) {
 	glClearColor(bg_color[0], bg_color[1], bg_color[2], 1.0);
 
 	glEnable(GL_MULTISAMPLE);
+	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
-	glFrontFace(GL_CW);
+	glFrontFace(GL_CCW);
+	glCullFace(GL_BACK);
 }
 
 void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 10.0) {
@@ -305,7 +308,7 @@ void Renderer::setupPrimitives() {
 		0.0,0.0,0.0,1.0,
 		1.0,0.0,0.0,1.0,
 		0.0,1.0,0.0,1.0,
-		0.0,0.0,-1.0,1.0
+		0.0,0.0,1.0,1.0
 	};
 	vector<float> axisGizmo_normal_coefficients = {
 		1.0,0.0,0.0,0.0,
@@ -337,6 +340,38 @@ void Renderer::setupPrimitives() {
 	line_primitive.VAO = BuildTrianglesVAO(
 		line_model_coefficients,
 		line_indices
+	);
+
+	vector<float> sprite_model_coefficients = {
+		-1.0,-1.0, 0.0,1.0,
+		 1.0,-1.0, 0.0,1.0,
+		-1.0, 1.0, 0.0,1.0,
+		 1.0, 1.0, 0.0,1.0
+	};
+	vector<float> sprite_normal_coefficients = {
+		 0.0, 0.0, 1.0, 0.0,
+		 0.0, 0.0, 1.0, 0.0,
+		 0.0, 0.0, 1.0, 0.0,
+		 0.0, 0.0, 1.0, 0.0
+	};
+	vector<float> sprite_texture_coefficients = {
+		0.0, 1.0,
+		1.0, 1.0,
+		0.0, 0.0,
+		1.0, 0.0
+	};
+	vector<GLuint> sprite_indices = {
+		0,1,2,
+		2,1,3
+	};
+
+	sprite_primitive.indexes_size = (int)sprite_indices.size();
+	BuildTrianglesVAO(
+		sprite_model_coefficients,
+		sprite_normal_coefficients,
+		sprite_texture_coefficients,
+		sprite_indices,
+		&sprite_primitive
 	);
 	
 

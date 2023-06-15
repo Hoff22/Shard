@@ -112,7 +112,7 @@ int main() {
 		if (p_b[1]) {
 			Renderer::pq.push(make_tuple(
 				0,
-				&d,
+				&Renderer::sprite_primitive,
 				Transform(
 					vec3(0.0, -p_f[4]/2.0, 0.0),
 					quat(1.0, vec3(0.0, 0.0, 0.0)),

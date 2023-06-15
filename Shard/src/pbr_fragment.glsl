@@ -24,5 +24,5 @@ void main()
 {
     //FragColor = (dot(vec4(1.0,1.0,0.0,0.0),vertexNormal)+1.0) * solid_color / 2.0;
     //FragColor = (dot(vec4(1.0,1.0,0.0,0.0),vertexNormal)+1.0) * vec4(texcoords, 0.0, 1.0) / 2.0;
-    FragColor = vec4(abs(vertexPos.xyz), 1.0);
+    FragColor = vec4(abs(texcoords.xy),0.0, 1.0);
 }
