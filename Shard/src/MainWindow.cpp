@@ -1,7 +1,7 @@
 #include "MainWindow.h"
 
-int MainWindow::SCR_WIDTH = 800;
-int MainWindow::SCR_HEIGHT = 600;
+int MainWindow::SCR_WIDTH = 1600;
+int MainWindow::SCR_HEIGHT = 1200;
 bool MainWindow::is_open_bool;
 GLFWwindow* MainWindow::window;
 bool options_hovered;
@@ -166,7 +166,8 @@ void MainWindow::drawOptions() {
 	ImVec4 color = ImVec4(Scene::paramsf[0], Scene::paramsf[1], Scene::paramsf[2], Scene::paramsf[3]);
 	ImVec4 backup_color = color;
 
-	ImGui::Begin("Options");
+	ImGui::SetNextWindowSize(ImVec2(330,500));
+	ImGui::Begin("Options", 0, ImGuiWindowFlags_NoResize);
 		ImGui::Text("BACKGROUND COLOR");
 		ImGui::Separator();
 		ImGui::ColorPicker4("##picker", (float*)Scene::paramsf, ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview);
@@ -180,13 +181,13 @@ void MainWindow::drawOptions() {
 		glfwGetCursorPos(window, &xpos, &ypos);
 		ImGui::Text("x: %d", std::min(std::max((int)xpos, 0), SCR_WIDTH));
 		ImGui::Text("y: %d", std::min(std::max((int)ypos, 0), SCR_HEIGHT));
-		ImGui::Text("camera: ");
-		ImGui::Text("x: %d", Scene::camera_pos.x);
-		ImGui::Text("y: %d", Scene::camera_pos.y);
+		ImGui::Separator();
+		ImGui::Text("FPS: %d", (int)(1.0f / Scene::deltaTime));
 		ImGui::EndGroup();
-		ImGui::SliderFloat("Zoom", &Scene::Zoom, 0.0f, 20.0f, "%.2f");
-		ImGui::SliderFloat("Thickness", &Scene::paramsf[4], 0.0f, 50.0f, "%.2f");
-		ImGui::SliderInt("Segments", &Scene::paramsi[0], 1, 100);
+		ImGui::SliderFloat("FOV", &Scene::paramsf[5], 0.0f, 360.0f, "%.2f");
+		ImGui::SliderFloat("Zoom", &Scene::Zoom, 0.0f, 100.0f, "%.2f");
+		ImGui::SliderFloat("size", &Scene::paramsf[4], 0.0f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderInt("paramsI[0]", &Scene::paramsi[0], 1, 100);
 		if (ImGui::Button("Clear")) {
 			Scene::paramsb[0] = 1;
 		}

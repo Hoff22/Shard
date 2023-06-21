@@ -2,12 +2,15 @@
 
 GLsizei Renderer::FRAME_WIDTH = 800;
 GLsizei Renderer::FRAME_HEIGHT = 600;
-Shader Renderer::lineShader;
+Shader Renderer::gizmoShader;
+Shader Renderer::noShadingShader;
 DrawObject Renderer::circle_primitive;
 DrawObject Renderer::sprite_primitive;
 DrawObject Renderer::line_primitive;
 DrawObject Renderer::axisGizmo_primitive;
-priority_queue<tuple<int, DrawObject*, Transform>> Renderer::pq;
+GLuint Renderer::numLoadedTextures = 0;
+GLuint Renderer::loadedTextureId[10] = { 0,0,0,0,0,0,0,0,0,0 };
+priority_queue<tuple<int, DrawObject*, Transform*, GLsizei>> Renderer::pq;
 
 GLuint Renderer::BuildTrianglesVAO(const vector<float>& model_coefficients, const vector<float>& normal_coefficients, const vector<GLuint>& indices)
 {
@@ -226,36 +229,173 @@ GLuint Renderer::BuildTrianglesVAO(const vector<float>& model_coefficients, cons
 	return VAO;
 }
 
-void Renderer::RenderTriangles(DrawObject* obj, const Transform& tr, Camera* camera, int prio, float thickness = 10.0) {
-	lineShader.use();
-	lineShader.setMatrix4("view_m", camera->GetViewMatrix());
-	lineShader.setMatrix4("proj_m", camera->GetProjectionMatrix());
-	lineShader.setMatrix4("mode_m", tr.GetModelMatrix());
+void Renderer::BuildInstanceVAO(const vector<Transform>& transforms, DrawObject* obj) {
+	
+	vector<float> M0_coefficients;
+	vector<float> M1_coefficients;
+	vector<float> M2_coefficients;
+	vector<float> M3_coefficients;
 
-	lineShader.setFloat4("solid_color", glm::vec4(0.8, 0.8, 0.8, 1.0));
+	for (const Transform& t : transforms) {
+		mat4 model = t.GetModelMatrix();
+		for (int i = 0; i < 4; i++) {
+			M0_coefficients.push_back(model[0][i]);
+		}
+		for (int i = 0; i < 4; i++) {
+			M1_coefficients.push_back(model[1][i]);
+		}
+		for (int i = 0; i < 4; i++) {
+			M2_coefficients.push_back(model[2][i]);
+		}
+		for (int i = 0; i < 4; i++) {
+			M3_coefficients.push_back(model[3][i]);
+		}
+	}
+	
+	if (obj->VAO == 0) {
+		glGenVertexArrays(1, &obj->VAO);
+	}
+	glBindVertexArray(obj->VAO);
 
-	// cout << "rendering obj VAO: " << obj->VAO << endl;
+	if (obj->VBO_instancedM0 == 0) {
+		glGenBuffers(1, &obj->VBO_instancedM0);
+		glGenBuffers(1, &obj->VBO_instancedM1);
+		glGenBuffers(1, &obj->VBO_instancedM2);
+		glGenBuffers(1, &obj->VBO_instancedM3);
+	}
+
+	GLuint location = 4; // "(location = 4)" em "shader_vertex.glsl"
+	GLint number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+	
+	glBindBuffer(GL_ARRAY_BUFFER, obj->VBO_instancedM0);
+	glBufferData(GL_ARRAY_BUFFER, M0_coefficients.size() * sizeof(float), M0_coefficients.data(), GL_STATIC_DRAW);
+	glEnableVertexAttribArray(location + 0);
+	glVertexAttribPointer(location + 0, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, obj->VBO_instancedM1);
+	glBufferData(GL_ARRAY_BUFFER, M1_coefficients.size() * sizeof(float), M1_coefficients.data(), GL_STATIC_DRAW);
+	glEnableVertexAttribArray(location + 1);
+	glVertexAttribPointer(location + 1, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, obj->VBO_instancedM2);
+	glBufferData(GL_ARRAY_BUFFER, M2_coefficients.size() * sizeof(float), M2_coefficients.data(), GL_STATIC_DRAW);
+	glEnableVertexAttribArray(location + 2);
+	glVertexAttribPointer(location + 2, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, obj->VBO_instancedM3);
+	glBufferData(GL_ARRAY_BUFFER, M3_coefficients.size() * sizeof(float), M3_coefficients.data(), GL_STATIC_DRAW);
+	glEnableVertexAttribArray(location + 3);
+	glVertexAttribPointer(location + 3, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glVertexAttribDivisor(location + 0, 1);
+	glVertexAttribDivisor(location + 1, 1);
+	glVertexAttribDivisor(location + 2, 1);
+	glVertexAttribDivisor(location + 3, 1);
+	
+	glBindVertexArray(0);
+}
+
+void Renderer::LoadTexture(string filepath) {
+	cout << "Carregando imagem " << filepath << "... " << "\n";
+
+	if (numLoadedTextures == 10) {
+		fprintf(stderr, "ERROR: too many textures loaded at once\n");
+		std::exit(EXIT_FAILURE);
+	}
+
+	// Primeiro fazemos a leitura da imagem do disco
+	stbi_set_flip_vertically_on_load(true);
+	int width;
+	int height;
+	int channels;
+	unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 3);
+
+	if (data == NULL)
+	{
+		fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filepath.c_str());
+		std::exit(EXIT_FAILURE);
+	}
+
+	printf("OK (%dx%d).\n", width, height);
+
+	// Agora criamos objetos na GPU com OpenGL para armazenar a textura
+	GLuint sampler_id;
+	glGenTextures(1, &loadedTextureId[numLoadedTextures]);
+	glGenSamplers(1, &sampler_id);
+
+	// Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
+	glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	// Parâmetros de amostragem da textura.
+	glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Agora enviamos a imagem lida do disco para a GPU
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+	glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+
+	GLuint textureunit = numLoadedTextures;
+	glActiveTexture(GL_TEXTURE0 + textureunit);
+	glBindTexture(GL_TEXTURE_2D, loadedTextureId[numLoadedTextures]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glBindSampler(textureunit, sampler_id);
+
+	stbi_image_free(data);
+
+	numLoadedTextures += 1;
+}
+void Renderer::UnloadTextures() {
+	for (int i = 0; i < 10; i++) {
+		glDeleteTextures(1, &loadedTextureId[i]);
+	}
+	numLoadedTextures = 0;
+}
+
+void Renderer::RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader = &noShadingShader, GLsizei instance_qnt = 0) {
+	shader->use();
+	shader->setMatrix4("view_m", camera->GetViewMatrix());
+	shader->setMatrix4("proj_m", camera->GetProjectionMatrix());
+	shader->setMatrix4("mode_m", tr->GetModelMatrix());
+
+	shader->setFloat4("solid_color", glm::vec4(25.0f / 255.0f, 25.0f / 255.0f, 25.0f / 255.0f, 1.0));
+	shader->setFloat4("camera_pos", glm::vec4(camera->Position, 1.0));
+
+	for (int i = 0; i < 10; i++) {
+		string name = "TextureImage";
+		name += to_string(i);
+
+		shader->setInt(name, i);
+	}
 
 	glBindVertexArray(obj->VAO);
-	//glCullFace(GL_BACK);
-	glDrawElements(GL_TRIANGLES, obj->indexes_size, GL_UNSIGNED_INT, 0);
+
+	if (instance_qnt > 0) {
+		glDrawElementsInstanced(GL_TRIANGLES, obj->indexes_size, GL_UNSIGNED_INT, 0, instance_qnt);
+	}
+	else {
+		glDrawElements(GL_TRIANGLES, obj->indexes_size, GL_UNSIGNED_INT, 0);
+	}
 
 	glBindVertexArray(0);
 }
 
-void Renderer::RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, float thickness = 2) {
-	lineShader.use();
-	lineShader.setMatrix4("view_m", camera->GetViewMatrix());
-	lineShader.setMatrix4("proj_m", camera->GetProjectionMatrix());
-	lineShader.setMatrix4("mode_m", tr.GetModelMatrix());
+void Renderer::RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, Shader* shader = &noShadingShader) {
+	shader->use();
+	shader->setMatrix4("view_m", camera->GetViewMatrix());
+	shader->setMatrix4("proj_m", camera->GetProjectionMatrix());
+	shader->setMatrix4("mode_m", tr.GetModelMatrix());
 
-	lineShader.setFloat4("solid_color", glm::vec4(0.8, 0.8, 0.8, 1.0));
+	shader->setFloat4("solid_color", glm::vec4(0.8, 0.8, 0.8, 1.0));
 
 	// cout << "rendering obj VAO: " << obj->VAO << endl;
 
 	glBindVertexArray(obj->VAO);
 	//glCullFace(GL_BACK);
-	glLineWidth(thickness);
+	glLineWidth(5);
 	glDrawElements(GL_LINES, obj->indexes_size, GL_UNSIGNED_INT, 0);
 
 	glBindVertexArray(0);
@@ -280,14 +420,15 @@ void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 1
 	
 	initFrame(bg_color);
 
-	RenderLines(&axisGizmo_primitive, Transform(), camera, 0);
-
+	RenderLines(&axisGizmo_primitive, Transform(), camera, 0, &gizmoShader);
+	
 	while (pq.size()) {
 		int prio;
 		DrawObject* obj;
-		Transform tr;
-		tie(prio, obj, tr) = pq.top();
-		RenderTriangles(obj, tr, camera, prio, thickness);
+		Transform* tr;
+		GLsizei instancecount;
+		tie(prio, obj, tr, instancecount) = pq.top();
+		RenderTriangles(obj, tr, camera, prio, &noShadingShader, instancecount);
 		pq.pop();
 	}
 
@@ -355,10 +496,10 @@ void Renderer::setupPrimitives() {
 		 0.0, 0.0, 1.0, 0.0
 	};
 	vector<float> sprite_texture_coefficients = {
-		0.0, 1.0,
-		1.0, 1.0,
 		0.0, 0.0,
-		1.0, 0.0
+		1.0, 0.0,
+		0.0, 1.0,
+		1.0, 1.0
 	};
 	vector<GLuint> sprite_indices = {
 		0,1,2,
@@ -375,5 +516,6 @@ void Renderer::setupPrimitives() {
 	);
 	
 
-	lineShader = Shader("src/line_vertex.glsl", "src/pbr_fragment.glsl");
+	noShadingShader = Shader("src/default_vertex.glsl", "src/noShading_fragment.glsl");
+	gizmoShader = Shader("src/default_vertex.glsl", "src/gizmo_fragment.glsl");
 }

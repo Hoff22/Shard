@@ -21,7 +21,7 @@ enum Camera_Movement {
 };
 
 // Default camera values
-const float YAW = -90.0f;
+const float YAW = 0.0;
 const float PITCH = 0.0f;
 const float SPEED = 15.5f;
 const float SENSITIVITY = 0.1f;
@@ -175,7 +175,7 @@ public:
 
 	glm::mat4 GetProjectionMatrix() const {
 		float n = 0.1f;
-		float f = 500.0f;
+		float f = 2000.0f;
 		float field_of_view = 3.141592 / 3.0f;
 		float t = Zoom;
 		float b = -t;
@@ -183,7 +183,7 @@ public:
 		float l = -r;
 
 		//return glm::ortho(l,r,b,t,n,f);
-		return glm::perspective(1/Zoom, ScreenRatio, n, f);
+		return glm::perspective(Zoom * glm::pi<float>() / 180.0f, ScreenRatio, n, f);
 	}
 
 

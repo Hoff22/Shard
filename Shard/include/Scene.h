@@ -14,7 +14,8 @@ public:
 	static bool*				click;
 	static bool*				mouse_drag;
 	static bool*				is_pressed;
-	static glm::vec2			camera_pos;
 	static float				Zoom;
+	static float				deltaTime;
+	static float				lastTime;
 };
 

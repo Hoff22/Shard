@@ -10,5 +10,6 @@ bool*			Scene::paramsb = 0;
 bool*			Scene::click = 0;
 bool*			Scene::mouse_drag = 0;
 bool*			Scene::is_pressed = 0;
-glm::vec2		Scene::camera_pos(0.0,0.0);
 float			Scene::Zoom = 0;
+float			Scene::deltaTime = 0;
+float			Scene::lastTime = 0;

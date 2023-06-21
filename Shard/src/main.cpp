@@ -12,20 +12,21 @@
 
 using namespace std;
 
-double curTime = 0.0;
-double deltaTime = 0.0;
-
 double lastMouseX = 0.0;
 double lastMouseY = 0.0;
 double mouseDeltaX = 0.0;
 double mouseDeltaY = 0.0;
 
-float	p_f[8] = { 25.0f / 255.0f, 25.0f / 255.0f, 25.0f / 255.0f, 255.0f / 255.0f, 3.0, 3.0, 2.0, 5.5 };
+bool cursor;
+
+float	p_f[8] = { 25.0f / 255.0f, 25.0f / 255.0f, 25.0f / 255.0f, 255.0f / 255.0f, 3.0, 45.0, 2.0, 5.5 };
 int		p_i[8] = { 10, 0, 0, 0, 0, 0, 0, 0 };
 bool	p_b[8] = { true, true, false, false, false, false, false, false };
 bool	i_p[6] = { false, false ,false ,false ,false ,false };
 bool	click[3] = { false, false ,false };
 bool	drag[3] = { false, false ,false };
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 void initScene() {
 	Scene::paramsf = p_f;
@@ -34,28 +35,32 @@ void initScene() {
 	Scene::is_pressed = i_p;
 	Scene::click = click;
 	Scene::mouse_drag = drag;
-	Scene::main_camera = new LookAtCamera(glm::vec3(0.0, 0.0, 10.0));
-	Scene::camera_pos = glm::vec2(0.0);
+	Scene::main_camera = new LookAtCamera(glm::vec3(0.0), glm::vec3(0.0,1.0,0.0), 90, 0);
 	Scene::objects = vector<Spline*>();
-	Scene::Zoom = 1.5f;
-
-	curTime = glfwGetTime();
+	Scene::Zoom = 50.0f;
+	Scene::deltaTime = 0.0;
+	Scene::lastTime = glfwGetTime();
 }
 
 void updateCamera() {
 	Scene::main_camera->ScreenRatio = 1.0f * MainWindow::SCR_WIDTH / MainWindow::SCR_HEIGHT;
-	((LookAtCamera*)(Scene::main_camera))->target = glm::vec3(Scene::camera_pos, 0.0);
-	Scene::main_camera->Zoom = Scene::Zoom;
+	((LookAtCamera*)(Scene::main_camera))->target = glm::vec3(0.0, 0.0, 0.0);
+	Scene::main_camera->Zoom = p_f[5];
+	((LookAtCamera*)(Scene::main_camera))->distanceFromTarget = Scene::Zoom;
 	Renderer::FRAME_WIDTH = MainWindow::SCR_WIDTH;
 	Renderer::FRAME_HEIGHT = MainWindow::SCR_HEIGHT;
-	((LookAtCamera*)(Scene::main_camera))->ProcessMouseMovement(mouseDeltaX, mouseDeltaY);
+	if (cursor) {
+		((LookAtCamera*)(Scene::main_camera))->ProcessMouseMovement(mouseDeltaX, mouseDeltaY);
+	}
 	((LookAtCamera*)(Scene::main_camera))->updateCameraVectors();
 }
 
 int main() {
 
+
 	glfwSetErrorCallback(MainWindow::glfw_error_callback);
 	if (!glfwInit()) return 1;
+
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
@@ -71,6 +76,7 @@ int main() {
 	glfwSwapInterval(0);
 
 	glfwSetFramebufferSizeCallback(MainWindow::window, MainWindow::framebuffer_size_callback);
+	glfwSetScrollCallback(MainWindow::window, scroll_callback);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -86,10 +92,27 @@ int main() {
 	Renderer::setupPrimitives();
 
 	Mesh ms("meshes/unitCube.obj");
-	DrawObject d;
-	d.indexes_size = ms.indices.size();
-	Renderer::BuildTrianglesVAO(ms.model_coefficients, ms.normal_coefficients, ms.texture_coefficients, ms.indices, &d);
-	
+	DrawObject d = Renderer::sprite_primitive;
+	cursor = false;
+
+	Renderer::LoadTexture("textures/img1.png");
+
+	vector<Transform> trs;
+	int n = 1000;
+	for (int i = -n; i <= n; i++) {
+		for (int j = -n; j <= n; j++) {
+			trs.push_back(
+				Transform(
+					vec3(0.0 + i * p_f[4] * 2.1f, 0.0 + j * p_f[4] * 2.1f, 0.0),
+					quat(1.0, vec3(0.0, 0.0, 0.0)),
+					vec3(p_f[4])
+				)
+			);
+		}
+	}
+
+	Renderer::BuildInstanceVAO(trs, &d);
+
 	while (MainWindow::is_open()) {
 
 		glfwPollEvents();
@@ -103,23 +126,24 @@ int main() {
 		lastMouseY = mouseY;
 		
 		if (Scene::is_pressed[4]) {
+			cursor = true;
 			glfwSetInputMode(MainWindow::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
 		if (Scene::is_pressed[5]) {
+			cursor = false;
 			glfwSetInputMode(MainWindow::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
-
-		if (p_b[1]) {
-			Renderer::pq.push(make_tuple(
-				0,
-				&Renderer::sprite_primitive,
-				Transform(
-					vec3(0.0, -p_f[4]/2.0, 0.0),
-					quat(1.0, vec3(0.0, 0.0, 0.0)),
-					vec3(p_f[4])
-				)
-			));
-		}
+		
+		Renderer::pq.push(make_tuple(
+			0,
+			&d,
+			new Transform(
+				vec3(0.0, 0.0, 0.0),
+				quat(1.0, vec3(0.0, 0.0, 0.0)),
+				vec3(1.0)
+			),
+			(2 * n + 1) * (2 * n + 1)
+		));
 
 		// update camera
 		updateCamera();
@@ -130,11 +154,17 @@ int main() {
 
 		glfwSwapBuffers(MainWindow::window);
 
-		deltaTime = curTime - glfwGetTime();
-		curTime = glfwGetTime();
+		Scene::deltaTime = glfwGetTime() - Scene::lastTime;
+		Scene::lastTime = glfwGetTime();
 	}
 	// clean up
+	Renderer::UnloadTextures();
 	MainWindow::cleanupUI();
 
 	return 0;
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	Scene::Zoom -= yoffset;
 }

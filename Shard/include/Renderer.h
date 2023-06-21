@@ -10,6 +10,7 @@
 #include <queue>
 
 #include <tiny_obj_loader.h>
+#include <stb_image.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -216,6 +217,10 @@ struct DrawObject {
 	GLuint VBO_tangents;
 	GLuint VBO_uv;
 	GLuint VBO_index;
+	GLuint VBO_instancedM0;
+	GLuint VBO_instancedM1;
+	GLuint VBO_instancedM2;
+	GLuint VBO_instancedM3;
 	GLuint indexes_size;
 
 	DrawObject() :
@@ -225,6 +230,10 @@ struct DrawObject {
 		VBO_normals(0),
 		VBO_tangents(0),
 		VBO_uv(0),
+		VBO_instancedM0(0),
+		VBO_instancedM1(0),
+		VBO_instancedM2(0),
+		VBO_instancedM3(0),
 		indexes_size(0)
 	{}
 
@@ -238,13 +247,16 @@ class Renderer
 public:
 	static GLsizei FRAME_WIDTH;
 	static GLsizei FRAME_HEIGHT;
-	static Shader lineShader;
+	static Shader gizmoShader;
+	static Shader noShadingShader;
 	static DrawObject circle_primitive;
 	static DrawObject sprite_primitive;
 	static DrawObject line_primitive;
 	static DrawObject axisGizmo_primitive;
+	static GLuint numLoadedTextures;
+	static GLuint loadedTextureId[10];
 
-	static priority_queue<tuple<int, DrawObject*, Transform>> pq;
+	static priority_queue<tuple<int, DrawObject*, Transform*, GLsizei>> pq;
 
 	// returns a VAO for the specified vertex array and indice array;
 	static GLuint BuildTrianglesVAO(const vector<float>& vertex_position, const vector<float>& vertex_normals, const vector<GLuint>& face_indexes);
@@ -252,8 +264,13 @@ public:
 	static void   BuildTrianglesVAO(const vector<float>& model_coefficients, const vector<float>& nromal_coefficients, const vector<float>& uv_coefficients, const vector<GLuint>& indices, DrawObject* obj);
 	static GLuint BuildTrianglesVAO(const vector<float>& vertex_position, const vector<GLuint>& face_indexes);
 
-	static void RenderTriangles(DrawObject* obj, const Transform& tr, Camera* camera, int prio, float thickness);
-	static void RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, float thickness);
+	static void BuildInstanceVAO(const vector<Transform>& transforms, DrawObject* obj);
+
+	static void LoadTexture(string filepath);
+	static void UnloadTextures();
+
+	static void RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader, GLsizei instance_qnt);
+	static void RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, Shader* shader);
 
 	static void initFrame(glm::vec4 bg_color);
 
