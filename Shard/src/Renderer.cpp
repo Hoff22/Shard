@@ -4,8 +4,11 @@ GLsizei Renderer::FRAME_WIDTH = 800;
 GLsizei Renderer::FRAME_HEIGHT = 600;
 Shader Renderer::gizmoShader;
 Shader Renderer::noShadingShader;
+Shader Renderer::PBRShader;
+Material Renderer::default_material;
 DrawObject Renderer::circle_primitive;
 DrawObject Renderer::sprite_primitive;
+DrawObject Renderer::sphere_primitive;
 DrawObject Renderer::line_primitive;
 DrawObject Renderer::axisGizmo_primitive;
 GLuint Renderer::numLoadedTextures = 0;
@@ -295,7 +298,25 @@ void Renderer::BuildInstanceVAO(const vector<Transform>& transforms, DrawObject*
 	glBindVertexArray(0);
 }
 
-void Renderer::LoadTexture(string filepath) {
+void Renderer::SetMaterialParams(const Material& material, Shader* shader) {
+	for (int i = 0; i < material.fparams.size(); i++) {
+		string name = "FloatParameter";
+		name += to_string(i);
+		shader->setFloat(name, material.fparams[i]);
+	}
+	for (int i = 0; i < material.v4params.size(); i++) {
+		string name = "VectorParameter";
+		name += to_string(i);
+		shader->setFloat4(name, material.v4params[i]);
+	}
+	for (int i = 0; i < material.textureIDs.size(); i++) {
+		string name = "TextureImage";
+		name += to_string(i);
+		shader->setInt(name, material.textureIDs[i]);
+	}
+}
+
+void Renderer::LoadTextureRGB(string filepath) {
 	cout << "Carregando imagem " << filepath << "... " << "\n";
 
 	if (numLoadedTextures == 10) {
@@ -309,11 +330,15 @@ void Renderer::LoadTexture(string filepath) {
 	int height;
 	int channels;
 	unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 3);
-
+	
 	if (data == NULL)
 	{
-		fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filepath.c_str());
-		std::exit(EXIT_FAILURE);
+		data = stbi_load(filepath.c_str(), &width, &height, &channels, 0);
+
+		if (data == NULL) {
+			fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filepath.c_str());
+			std::exit(EXIT_FAILURE);
+		}
 	}
 
 	printf("OK (%dx%d).\n", width, height);
@@ -355,28 +380,49 @@ void Renderer::UnloadTextures() {
 	numLoadedTextures = 0;
 }
 
-void Renderer::RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader = &noShadingShader, GLsizei instance_qnt = 0) {
+void Renderer::DrawEnv(Camera* camera) {
+	noShadingShader.use();
+	noShadingShader.setMatrix4("view_m", camera->GetViewMatrix());
+	noShadingShader.setMatrix4("proj_m", camera->GetProjectionMatrix());
+	noShadingShader.setMatrix4("mode_m", Transform(camera->Position, glm::quat(1.0, vec3(0.0, 0.0, 0.0)), glm::vec3(1.0f)).GetModelMatrix());
+
+	Material mat;
+	mat.textureIDs = { 0 };
+	SetMaterialParams(mat, &noShadingShader);
+	noShadingShader.setBool("is_instance", 0);
+
+	glBindVertexArray(sphere_primitive.VAO);
+
+	glCullFace(GL_FRONT);
+
+	glDrawElements(GL_TRIANGLES, sphere_primitive.indexes_size, GL_UNSIGNED_INT, 0);
+
+	glBindVertexArray(0);
+}
+
+void Renderer::RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader = &PBRShader, GLsizei instance_qnt = 0) {
 	shader->use();
 	shader->setMatrix4("view_m", camera->GetViewMatrix());
 	shader->setMatrix4("proj_m", camera->GetProjectionMatrix());
 	shader->setMatrix4("mode_m", tr->GetModelMatrix());
 
-	shader->setFloat4("solid_color", glm::vec4(25.0f / 255.0f, 25.0f / 255.0f, 25.0f / 255.0f, 1.0));
-	shader->setFloat4("camera_pos", glm::vec4(camera->Position, 1.0));
-
-	for (int i = 0; i < 10; i++) {
-		string name = "TextureImage";
-		name += to_string(i);
-
-		shader->setInt(name, i);
-	}
+	obj->material.v4params[1] = glm::vec4(camera->Position, 0.0f);
+	obj->material.v4params[2] = glm::vec4(camera->Front, 0.0f);
+	obj->material.v4params[3] = glm::vec4(tr->position, 0.0f);
+	SetMaterialParams(obj->material, shader);
 
 	glBindVertexArray(obj->VAO);
 
 	if (instance_qnt > 0) {
+		if (obj->VBO_instancedM0 == 0) {
+			std::cout << "ERROR::INSTANCE CALL FOR UNINITIALIZED RENDER OBJECT" << std::endl;
+			exit(1);
+		}
+		shader->setBool("is_instance", 1);
 		glDrawElementsInstanced(GL_TRIANGLES, obj->indexes_size, GL_UNSIGNED_INT, 0, instance_qnt);
 	}
 	else {
+		shader->setBool("is_instance", 0);
 		glDrawElements(GL_TRIANGLES, obj->indexes_size, GL_UNSIGNED_INT, 0);
 	}
 
@@ -404,8 +450,8 @@ void Renderer::RenderLines(DrawObject* obj, const Transform& tr, Camera* camera,
 void Renderer::initFrame(glm::vec4 bg_color) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(bg_color[0], bg_color[1], bg_color[2], 1.0);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	//glClearColor(bg_color[0], bg_color[1], bg_color[2], 1.0);
 
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -418,6 +464,8 @@ void Renderer::initFrame(glm::vec4 bg_color) {
 
 void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 10.0) {
 	
+	DrawEnv(camera);
+	
 	initFrame(bg_color);
 
 	RenderLines(&axisGizmo_primitive, Transform(), camera, 0, &gizmoShader);
@@ -428,7 +476,7 @@ void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 1
 		Transform* tr;
 		GLsizei instancecount;
 		tie(prio, obj, tr, instancecount) = pq.top();
-		RenderTriangles(obj, tr, camera, prio, &noShadingShader, instancecount);
+		RenderTriangles(obj, tr, camera, prio, &PBRShader, instancecount);
 		pq.pop();
 	}
 
@@ -444,6 +492,19 @@ void Renderer::setupPrimitives() {
 		circle_mesh.normal_coefficients,
 		circle_mesh.indices
 		);
+
+	Mesh sphere_mesh("meshes/sphere.obj");
+	LoadTextureRGB("textures/hdri_env1.png");
+
+	sphere_primitive.indexes_size = (int)sphere_mesh.indices.size();
+	BuildTrianglesVAO(
+		sphere_mesh.model_coefficients,
+		sphere_mesh.normal_coefficients,
+		sphere_mesh.tangent_coefficients,
+		sphere_mesh.texture_coefficients,
+		sphere_mesh.indices,
+		&sphere_primitive
+	);
 
 	vector<float> axisGizmo_model_coefficients = {
 		0.0,0.0,0.0,1.0,
@@ -515,7 +576,10 @@ void Renderer::setupPrimitives() {
 		&sprite_primitive
 	);
 	
-
-	noShadingShader = Shader("src/default_vertex.glsl", "src/noShading_fragment.glsl");
-	gizmoShader = Shader("src/default_vertex.glsl", "src/gizmo_fragment.glsl");
+	default_material.v4params = { glm::vec4(25.0 / 255.0,25.0 / 255.0,25.0 / 255.0,1.0), glm::vec4(1.0), glm::vec4(1.0), glm::vec4(1.0), glm::vec4(1.0) };
+	default_material.fparams = vector<float>(5);
+	default_material.textureIDs = { 1, 0, 2 };
+	noShadingShader = Shader("src/shaders/default_vertex.glsl", "src/shaders/noShading_fragment.glsl");
+	PBRShader = Shader("src/shaders/pbr_vertex.glsl", "src/shaders/pbr_fragment.glsl");
+	gizmoShader = Shader("src/shaders/default_vertex.glsl", "src/shaders/gizmo_fragment.glsl");
 }

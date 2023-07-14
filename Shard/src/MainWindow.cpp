@@ -1,7 +1,7 @@
 #include "MainWindow.h"
 
-int MainWindow::SCR_WIDTH = 1600;
-int MainWindow::SCR_HEIGHT = 1200;
+int MainWindow::SCR_WIDTH = 1000;
+int MainWindow::SCR_HEIGHT = 1000;
 bool MainWindow::is_open_bool;
 GLFWwindow* MainWindow::window;
 bool options_hovered;
@@ -166,7 +166,7 @@ void MainWindow::drawOptions() {
 	ImVec4 color = ImVec4(Scene::paramsf[0], Scene::paramsf[1], Scene::paramsf[2], Scene::paramsf[3]);
 	ImVec4 backup_color = color;
 
-	ImGui::SetNextWindowSize(ImVec2(330,500));
+	ImGui::SetNextWindowSize(ImVec2(360,800));
 	ImGui::Begin("Options", 0, ImGuiWindowFlags_NoResize);
 		ImGui::Text("BACKGROUND COLOR");
 		ImGui::Separator();
@@ -186,15 +186,19 @@ void MainWindow::drawOptions() {
 		ImGui::EndGroup();
 		ImGui::SliderFloat("FOV", &Scene::paramsf[5], 0.0f, 360.0f, "%.2f");
 		ImGui::SliderFloat("Zoom", &Scene::Zoom, 0.0f, 100.0f, "%.2f");
-		ImGui::SliderFloat("size", &Scene::paramsf[4], 0.0f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-		ImGui::SliderInt("paramsI[0]", &Scene::paramsi[0], 1, 100);
+		ImGui::SliderFloat("Model Size", &Scene::paramsf[4], 0.0f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Rotate", &Scene::paramsf[10], 0.0, 2048.0, "%.3f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Diffuse", &Scene::paramsf[6], 0.0f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Specular", &Scene::paramsf[7], 0.0f, 100.0f, "%.2f");
+		ImGui::SliderFloat("Reflection", &Scene::paramsf[8], 0.0f, 100.0f, "%.2f");
+		ImGui::SliderFloat("Roughness", &Scene::paramsf[9], 1.0f, 100.0f, "%.2f");
 		if (ImGui::Button("Clear")) {
 			Scene::paramsb[0] = 1;
 		}
 		ImGui::SameLine();
-		ImGui::Checkbox("render", &Scene::paramsb[1]);
-		ImGui::SameLine();
-		ImGui::Checkbox("lock", &Scene::paramsb[2]);
+		if (ImGui::Button("Shaders")) {
+			Scene::paramsb[1] = 1;
+		}
 
 	ImGui::End();
 }

@@ -208,7 +208,7 @@ public:
 		return Matrix_Translate(position) * Matrix_Scale(scale) * Matrix_Rotate_Z(r.z) * Matrix_Rotate_Y(r.y) * Matrix_Rotate_X(r.x) * I;
 	}
 
-	Transform lookAt(vec3 target, vec3 worldUp = vec3(0.0,1.0,0.0)) {
+	Transform* lookAt(vec3 target, vec3 worldUp = vec3(0.0,1.0,0.0)) {
 		target = normalize(target);
 
 		vec3 front = getFront();
@@ -226,11 +226,16 @@ public:
 
 		rotation = normalize(quat(w, axis)) * rotation;
 		
-		return *this;
+		return this;
+	}
+
+	Transform* resize(vec3 s) {
+		this->scale *= s;
+		return this;
 	}
 
 	vec3 getFront() {
-		return rotation * vec3(0.0,0.0,-1.0);
+		return rotation * vec3(0.0,0.0,1.0);
 	}
 	vec3 getUp() {
 		return rotation * vec3(0.0, 1.0, 0.0);

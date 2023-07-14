@@ -26,6 +26,7 @@ struct Mesh {
 	vector<GLuint> indices;
 	vector<float>  model_coefficients;
 	vector<float>  normal_coefficients;
+	vector<float>  tangent_coefficients;
 	vector<float>  texture_coefficients;
 
 	tinyobj::attrib_t                 attrib;
@@ -71,6 +72,7 @@ struct Mesh {
 		for (size_t triangle = 0; triangle < num_triangles; ++triangle)
 		{
 			assert(shapes[0].mesh.num_face_vertices[triangle] == 3);
+
 
 			for (size_t vertex = 0; vertex < 3; ++vertex)
 			{
@@ -118,17 +120,20 @@ struct Mesh {
 					texture_coefficients.push_back(v);
 				}
 			}
+			
 		}
 
-		ComputeNormals(this);
+		ComputeTangents();
+			
+		//ComputeNormals(this);
 
 		printf("OK.\n");
 	}
 
 	void ComputeNormals(Mesh* model)
 	{
-		if (!model->attrib.normals.empty())
-			return;
+		//if (!model->attrib.normals.empty())
+			//return;
 
 		// Primeiro computamos as normais para todos os TRIÂNGULOS.
 		// Segundo, computamos as normais dos VÉRTICES através do método proposto
@@ -208,6 +213,108 @@ struct Mesh {
 			}
 		}
 	}
+
+	void ComputeTangents() {
+		assert(!model_coefficients.empty());
+
+		vector<glm::vec3> tangents_acc(num_triangles * 3, glm::vec3(0.0f));
+
+		for (size_t triangle = 0; triangle < num_triangles; ++triangle) {
+
+			glm::vec3 p0 = glm::vec3(
+				model_coefficients[12 * triangle + 4 * 0 + 0],
+				model_coefficients[12 * triangle + 4 * 0 + 1],
+				model_coefficients[12 * triangle + 4 * 0 + 2]
+			);
+			glm::vec3 p1 = glm::vec3(
+				model_coefficients[12 * triangle + 4 * 1 + 0],
+				model_coefficients[12 * triangle + 4 * 1 + 1],
+				model_coefficients[12 * triangle + 4 * 1 + 2]
+			);
+			glm::vec3 p2 = glm::vec3(
+				model_coefficients[12 * triangle + 4 * 2 + 0],
+				model_coefficients[12 * triangle + 4 * 2 + 1],
+				model_coefficients[12 * triangle + 4 * 2 + 2]
+			);
+
+			glm::vec2 uv0 = glm::vec2(
+				texture_coefficients[6 * triangle + 2 * 0 + 0],
+				texture_coefficients[6 * triangle + 2 * 0 + 1]
+			);
+
+			glm::vec2 uv1 = glm::vec2(
+				texture_coefficients[6 * triangle + 2 * 1 + 0],
+				texture_coefficients[6 * triangle + 2 * 1 + 1]
+			);
+
+			glm::vec2 uv2 = glm::vec2(
+				texture_coefficients[6 * triangle + 2 * 2 + 0],
+				texture_coefficients[6 * triangle + 2 * 2 + 1]
+			);
+
+			glm::vec3 q1 = (p1 - p0);
+			glm::vec3 q2 = (p2 - p0);
+
+			float s1, s2, t1, t2;
+			s1 = (uv1.x - uv0.x);
+			s2 = (uv2.x - uv0.x);
+			t1 = (uv1.y - uv0.y);
+			t2 = (uv2.y - uv0.y);
+
+			glm::mat2 st(
+				t2, -s2,
+				-t1, s1
+			);
+
+			glm::mat3x2 mQ(
+				q1.x, q2.x,
+				q1.y, q2.y,
+				q1.z, q2.z
+			);
+
+			glm::mat3x2 mT = (1.0f / (s1 * t2 - s2 * t1)) * (st * mQ);
+
+			glm::vec3 tan(mT[0][0], mT[1][0], mT[2][0]);
+
+			tinyobj::index_t idx0 = shapes[0].mesh.indices[3 * triangle + 0];
+			tinyobj::index_t idx1 = shapes[0].mesh.indices[3 * triangle + 1];
+			tinyobj::index_t idx2 = shapes[0].mesh.indices[3 * triangle + 2];
+
+			tangents_acc[idx0.vertex_index] += tan;
+			tangents_acc[idx1.vertex_index] += tan;
+			tangents_acc[idx2.vertex_index] += tan;
+		}
+
+		for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+		{
+			assert(shapes[0].mesh.num_face_vertices[triangle] == 3);
+			for (size_t vertex = 0; vertex < 3; ++vertex)
+			{
+				tinyobj::index_t idx = shapes[0].mesh.indices[3 * triangle + vertex];
+
+				glm::vec3 tangent = tangents_acc[idx.vertex_index];
+
+				tangent = glm::normalize(tangent);
+
+				tangent_coefficients.push_back(tangent.x); // X
+				tangent_coefficients.push_back(tangent.y); // Y
+				tangent_coefficients.push_back(tangent.z); // Z
+				tangent_coefficients.push_back(0.0f); // W
+			}
+		}
+	}
+};
+
+struct Material {
+	vector<float> fparams;
+	vector<glm::vec4> v4params;
+	vector<int> textureIDs;
+
+	Material() :
+		fparams(vector<float>()),
+		v4params(vector<glm::vec4>()),
+		textureIDs(vector<int>())
+	{}
 };
 
 struct DrawObject {
@@ -222,6 +329,8 @@ struct DrawObject {
 	GLuint VBO_instancedM2;
 	GLuint VBO_instancedM3;
 	GLuint indexes_size;
+
+	Material material;
 
 	DrawObject() :
 		VAO(0),
@@ -249,8 +358,11 @@ public:
 	static GLsizei FRAME_HEIGHT;
 	static Shader gizmoShader;
 	static Shader noShadingShader;
+	static Shader PBRShader;
+	static Material default_material;
 	static DrawObject circle_primitive;
 	static DrawObject sprite_primitive;
+	static DrawObject sphere_primitive;
 	static DrawObject line_primitive;
 	static DrawObject axisGizmo_primitive;
 	static GLuint numLoadedTextures;
@@ -266,8 +378,12 @@ public:
 
 	static void BuildInstanceVAO(const vector<Transform>& transforms, DrawObject* obj);
 
-	static void LoadTexture(string filepath);
+	static void SetMaterialParams(const Material& material, Shader* shader);
+
+	static void LoadTextureRGB(string filepath);
 	static void UnloadTextures();
+
+	static void DrawEnv(Camera* camera);
 
 	static void RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader, GLsizei instance_qnt);
 	static void RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, Shader* shader);
