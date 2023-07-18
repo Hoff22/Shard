@@ -158,7 +158,6 @@
     <ClInclude Include="include\Renderer.h" />
     <ClInclude Include="include\Scene.h" />
     <ClInclude Include="include\Shader.h" />
-    <ClInclude Include="include\Spline.h" />
     <ClInclude Include="include\stb_image.h" />
     <ClInclude Include="include\tiny_obj_loader.h" />
     <ClInclude Include="include\Transform.h" />
@@ -176,7 +175,6 @@
     <ClCompile Include="src\MainWindow.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\Scene.cpp" />
-    <ClCompile Include="src\Spline.cpp" />
     <ClCompile Include="src\stb_image.cpp" />
     <ClCompile Include="src\tiny_obj_loader.cpp" />
   </ItemGroup>

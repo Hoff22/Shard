@@ -110,8 +110,8 @@ vec4 correct_normals_displacement(float displace_amt, float step){
     vec4 du = vertexTangent * texel; 
     vec4 dv = biTan * texel; 
 
-    float dif_u = pNoise((texcoords + vec2(texel,0.0))) - pNoise(texcoords);
-    float dif_v = pNoise((texcoords + vec2(0.0,texel))) - pNoise(texcoords);
+    float dif_u = pNoise((texcoords + vec2(texel,0.0)) * 2048, 2048) - pNoise(texcoords * 2048, 2048);
+    float dif_v = pNoise((texcoords + vec2(0.0,texel)) * 2048, 2048) - pNoise(texcoords * 2048, 2048);
 
     vec4 p1 = du + dif_u * vertexNormal * displace_factor; 
     vec4 p2 = dv + dif_v * vertexNormal * displace_factor; 

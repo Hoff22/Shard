@@ -120,7 +120,7 @@ void main()
     }
     else{
         fmode_m = mode_m;
-        worldPos = mode_m * (aPos + vNormal * pNoise(uv) * displace_amt);
+        worldPos = mode_m * (aPos + vNormal * pNoise(uv * 2048, 2048) * displace_amt);
         vertexNormal = normalize(inverse(transpose(mode_m)) * vNormal);
         vertexTangent = normalize(inverse(transpose(mode_m)) * vTan);
     }

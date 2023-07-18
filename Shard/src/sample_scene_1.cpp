@@ -64,7 +64,7 @@ int main() {
 
 		MainWindow::handle_input();
 		MainWindow::drawUI();
-
+	
 		glm::vec4 bg_color = glm::vec4(p_f[0], p_f[1], p_f[2], p_f[3]);
 
 		updateCamera();

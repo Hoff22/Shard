@@ -98,8 +98,9 @@ int MainWindow::is_open() {
 	return (!(glfwWindowShouldClose(window)) and is_open_bool);
 }
 
-void MainWindow::handle_input(GLFWwindow* window, float _speed) {
-
+void MainWindow::handle_input(float _speed) {
+	
+	glfwPollEvents();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 
 	if (ImGui::IsKeyDown('W')) {
@@ -124,6 +125,13 @@ void MainWindow::handle_input(GLFWwindow* window, float _speed) {
 
 	}
 	else Scene::is_pressed[5] = false;
+
+	double mouse_x, mouse_y;
+	glfwGetCursorPos(window, &mouse_x, &mouse_y);
+	Scene::mouseDeltaX = mouse_x - Scene::lastMouseX;
+	Scene::mouseDeltaY = Scene::lastMouseY - mouse_y;
+	Scene::lastMouseX = mouse_x;
+	Scene::lastMouseY = mouse_y;
 
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 		Scene::click[0] = true;

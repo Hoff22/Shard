@@ -1,6 +1,5 @@
 #pragma once
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "MainWindow.h"
 
 #include <iostream>
 #include <stdio.h>
@@ -351,9 +350,15 @@ struct DrawObject {
 	}
 };
 
+enum class RenderFlag : int{
+	NoFlag,
+	DrawEnvironmentFlag
+};
+
 class Renderer
 {
 public:
+
 	static GLsizei FRAME_WIDTH;
 	static GLsizei FRAME_HEIGHT;
 	static Shader gizmoShader;
@@ -388,10 +393,12 @@ public:
 	static void RenderTriangles(DrawObject* obj, Transform* tr, Camera* camera, int prio, Shader* shader, GLsizei instance_qnt);
 	static void RenderLines(DrawObject* obj, const Transform& tr, Camera* camera, int prio, Shader* shader);
 
-	static void initFrame(glm::vec4 bg_color);
+	static void InitFrame(glm::vec4 bg_color, bool clear_color = false);
 
-	static void drawFrame(glm::vec4 bg_color, Camera* camera, float thickness);
+	static void DrawFrame(glm::vec4 bg_color, Camera* camera, RenderFlag render_flags = RenderFlag::NoFlag);
 	
-	static void setupPrimitives();
+	static void SetupPrimitives();
+
+	static int Setup_GLAD_GLFW_OpenGL_Shard(string program_window_name);
 };
 

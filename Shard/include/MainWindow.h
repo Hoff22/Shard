@@ -24,6 +24,11 @@ public:
 		fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 	}
 
+	static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+	{
+		Scene::Zoom -= yoffset;
+	}
+
 
 	static GLFWwindow*	window;
 	static int			SCR_WIDTH;
@@ -33,7 +38,7 @@ public:
 	static void	drawUI();
 	static void	cleanupUI();
 	static int	is_open();
-	static void	handle_input(GLFWwindow* window, float _speed);
+	static void	handle_input(float _speed = 1.0);
 	static void	drawOptions();
 };
 

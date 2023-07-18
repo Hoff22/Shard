@@ -447,11 +447,16 @@ void Renderer::RenderLines(DrawObject* obj, const Transform& tr, Camera* camera,
 	glBindVertexArray(0);
 }
 
-void Renderer::initFrame(glm::vec4 bg_color) {
+void Renderer::InitFrame(glm::vec4 bg_color, bool clear_color) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	glClear(GL_DEPTH_BUFFER_BIT);
-	//glClearColor(bg_color[0], bg_color[1], bg_color[2], 1.0);
+	if (clear_color) {
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+		glClearColor(bg_color[0], bg_color[1], bg_color[2], 1.0);
+	}
+	else {
+		glClear(GL_DEPTH_BUFFER_BIT);
+	}
 
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -462,12 +467,19 @@ void Renderer::initFrame(glm::vec4 bg_color) {
 	glCullFace(GL_BACK);
 }
 
-void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 10.0) {
+void Renderer::DrawFrame(glm::vec4 bg_color, Camera* camera, RenderFlag renderFlags) {
 	
-	DrawEnv(camera);
-	
-	initFrame(bg_color);
+	Renderer::FRAME_WIDTH = MainWindow::SCR_WIDTH;
+	Renderer::FRAME_HEIGHT = MainWindow::SCR_HEIGHT;
 
+	if (static_cast<int>(renderFlags) & static_cast<int>(RenderFlag::DrawEnvironmentFlag)) {
+		DrawEnv(camera);
+		InitFrame(bg_color);
+	}
+	else {
+		InitFrame(bg_color, true);
+	}
+	
 	RenderLines(&axisGizmo_primitive, Transform(), camera, 0, &gizmoShader);
 	
 	while (pq.size()) {
@@ -481,9 +493,12 @@ void Renderer::drawFrame(glm::vec4 bg_color, Camera* camera, float thickness = 1
 	}
 
 	glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+
+	assert(MainWindow::window != NULL);
+	glfwSwapBuffers(MainWindow::window);
 }
 
-void Renderer::setupPrimitives() {
+void Renderer::SetupPrimitives() {
 	Mesh circle_mesh("meshes/circle.obj");
 
 	circle_primitive.indexes_size = (int)circle_mesh.indices.size();
@@ -582,4 +597,36 @@ void Renderer::setupPrimitives() {
 	noShadingShader = Shader("src/shaders/default_vertex.glsl", "src/shaders/noShading_fragment.glsl");
 	PBRShader = Shader("src/shaders/pbr_vertex.glsl", "src/shaders/pbr_fragment.glsl");
 	gizmoShader = Shader("src/shaders/default_vertex.glsl", "src/shaders/gizmo_fragment.glsl");
+}
+
+int Renderer::Setup_GLAD_GLFW_OpenGL_Shard(string program_window_name) {
+	glfwSetErrorCallback(MainWindow::glfw_error_callback);
+	if (!glfwInit()) return 1;
+
+	glfwWindowHint(GLFW_SAMPLES, 4);
+
+	MainWindow::window = glfwCreateWindow(MainWindow::SCR_WIDTH, MainWindow::SCR_HEIGHT, program_window_name.c_str(), NULL, NULL);
+	if (MainWindow::window == NULL)
+	{
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+
+	glfwMakeContextCurrent(MainWindow::window);
+	glfwSwapInterval(0);
+
+	glfwSetFramebufferSizeCallback(MainWindow::window, MainWindow::framebuffer_size_callback);
+	glfwSetScrollCallback(MainWindow::window, MainWindow::scroll_callback);
+
+	// glad: load all OpenGL function pointers
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
+	}
+
+	// init ui
+	MainWindow::initUI();
+	SetupPrimitives();
 }
